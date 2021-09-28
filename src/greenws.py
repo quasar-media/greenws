@@ -1,4 +1,4 @@
-"""greenws provides a green implementation of websockets."""
+"""WebSockets for gevent."""
 
 # parts borrowed from trio-websocket
 # Copyright (c) 2018 Hyperion Gray
@@ -11,15 +11,15 @@ import struct
 import sys
 import time
 
-import wsproto
-import wsproto.events
-import wsproto.utilities
 import gevent
 import gevent.event
 import gevent.lock
 import gevent.pywsgi
 import gevent.queue
 import gevent.socket
+import wsproto
+import wsproto.events
+import wsproto.utilities
 from gevent.timeout import Timeout  # re-export
 
 __version__ = "0.1.0a1"
@@ -34,13 +34,13 @@ Proposal = collections.namedtuple("Proposal", "subprotocols")
 class State(enum.IntEnum):
     """Connection state."""
 
-    #: The WebSocket is in the process of establishing a connection
+    #: The WebSocket is in the process of establishing a connection.
     CONNECTING = 1
 
-    #: The WebSocket is open and operational
+    #: The WebSocket is open and operational.
     OPEN = 2
 
-    #: The WebSocket is rejecting or closed
+    #: The WebSocket is rejecting or closed.
     CLOSED = 3
 
 
@@ -136,7 +136,7 @@ class WebSocket:
 
        If the message queue fills up with *message_queue_size* messages, the
        reader loop will stop handling events. This means pings won't be replied
-       to, among other things: take care to process your messages, or set a
+       to, among other things: take care in processing your messages, or set a
        larger queue size.
 
     Instances are greenlet-safe, though only after the initialization process
@@ -239,7 +239,8 @@ class WebSocket:
     def receive(self, *, timeout=None):
         """Receive a message.
 
-        :param timeout: how long to wait for a message (default: wait indefinitely)
+        :param timeout: how long to wait for a message (default: wait
+            indefinitely)
         :type timeout: float
 
         :raises Closed: if the connection is closed
@@ -409,7 +410,7 @@ class WebSocket:
                             except _MoveOn:
                                 raise
                             except BaseException:
-                                self._log.exception("_read_loop handle() failed")
+                                self._log.exception("_read_loop handle()")
                                 raise _MoveOn()
             except _MoveOn as e:
                 shutdown = e.shutdown
@@ -487,7 +488,10 @@ class WebSocket:
             )
 
         if event.message_finished:
-            delim = ("" if issubclass(type(event), wsproto.events.TextMessage) else b"")
+            delim = (
+                "" if issubclass(type(event), wsproto.events.TextMessage)
+                else b""
+            )
             data = delim.join(self._reading_message_parts)
             self._reading_message_type = None
             self._reading_message_size = 0
@@ -522,7 +526,7 @@ class WebSocket:
         # if we initiated the close...
         if self._ws.state is wsproto.ConnectionState.CLOSED:
             # ...our job here is done...
-            self._log.debug("_handle_close finished closing handshake initiated by us")
+            self._log.debug("_handle_close initiated by us, moving on")
             raise _MoveOn()
         elif self._ws.state in {
             # normal close initiated by the remote
@@ -546,7 +550,9 @@ class WebSocket:
             except Timeout:
                 misses += 1
                 if misses > self.periodic_ping_max_sequential_misses:
-                    self._log.error("_ping_loop missed %d pings, closing", misses)
+                    self._log.error(
+                        "_ping_loop missed %d pings, closing", misses,
+                    )
                     self._close_with_timeout(
                         code=1008,  # Policy Violation
                         timeout=10.0,
@@ -618,7 +624,8 @@ class WebSocket:
     def _ensure_connecting(self):
         if self.state is not State.CONNECTING:
             raise ProgrammingError(
-                f"state must be CONNECTING, is {self._ws_handshake.state.name}",
+                "state must be CONNECTING, is "
+                + self._ws_handshake.state.name,
             )
 
     def _make_header_value(self, v):
@@ -802,6 +809,8 @@ class ServerWebSocket(WebSocket):
             proposed by the client in :meth:`handshake`, otherwise the client
             is forced to fail the connection
         :type subprotocol: str
+
+        :raises ProgrammingError: if called at an inappropriate time
         """
 
         self._ensure_connecting()
@@ -833,7 +842,7 @@ class WSHandler(gevent.pywsgi.WSGIHandler):
 
     def get_environ(self):
         environ = super().get_environ()
-        if environ["HTTP_UPGRADE"].lower() == "websocket":
+        if environ.get("HTTP_UPGRADE", "").lower() == "websocket":
             self.__ws = environ["greenws.websocket"] = \
                 ServerWebSocket(self.socket)
         return environ
@@ -851,7 +860,7 @@ class WSHandler(gevent.pywsgi.WSGIHandler):
 
 
 def uncgi_headers(environ):
-    """A helper to transform a WSGI environment to a list of headers.
+    """A helper to transform a WSGI environment into a list of headers.
 
     :param environ: the WSGI environment
     :type environ: dict
