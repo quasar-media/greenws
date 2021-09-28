@@ -2,6 +2,11 @@
 gevent_ networking library. It is backed by the excellent wsproto_ protocol
 implementation.
 
+Documentation
+-------------
+
+Available on RTD_.
+
 Usage
 -----
 
@@ -11,3 +16,4 @@ Autobahn compliance tests and a nicer client API are the current priorities.
 .. _RFC 6455: https://datatracker.ietf.org/doc/html/rfc6455
 .. _gevent: https://gevent.org/
 .. _wsproto: https://github.com/python-hyper/wsproto
+.. _RTD: https://greenws.rtfd.io/
