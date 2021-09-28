@@ -1,0 +1,18 @@
+# bytecode caches
+__pycache__/
+*.py[cod]
+
+# packaging
+dist/
+*.egg-info/
+
+# environments
+.venv
+.venv.*
+
+# testing, profiling, coverage
+.coverage
+.prof
+htmlcov
+
+_test/
