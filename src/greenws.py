@@ -4,6 +4,7 @@
 # Copyright (c) 2018 Hyperion Gray
 
 import collections
+import enum
 import logging
 import secrets
 import struct
@@ -21,13 +22,26 @@ import gevent.queue
 import gevent.socket
 from gevent.timeout import Timeout  # re-export
 
-__version__ = "0.1.0a0"
+__version__ = "0.1.0a1"
 
 #: A proposed connection.
 #:
 #: namedtuple of one: *subprotocols* provides a list of subprotocols the client
 #: proposed in the upgrade handshake.
 Proposal = collections.namedtuple("Proposal", "subprotocols")
+
+
+class State(enum.IntEnum):
+    """Connection state."""
+
+    #: The WebSocket is in the process of establishing a connection
+    CONNECTING = 1
+
+    #: The WebSocket is open and operational
+    OPEN = 2
+
+    #: The WebSocket is rejecting or closed
+    CLOSED = 3
 
 
 # FIXME: this hierarchy is horrible
@@ -177,11 +191,29 @@ class WebSocket:
         self._log = logging.getLogger(type(self).__qualname__)
 
     @property
-    def is_open(self):
-        return (
-            self._ws is not None
-            and self._ws.state is wsproto.ConnectionState.OPEN
-        )
+    def state(self):
+        """Connection state.
+
+        :return: state
+        :rtype: State
+        """
+
+        if (
+            self._ws is None
+            or self._ws.state is wsproto.ConnectionState.CONNECTING
+        ):
+            return State.CONNECTING
+        elif self._ws.state is wsproto.ConnectionState.OPEN:
+            return State.OPEN
+        elif self._ws.state in {
+            wsproto.ConnectionState.REMOTE_CLOSING,
+            wsproto.ConnectionState.LOCAL_CLOSING,
+            wsproto.ConnectionState.CLOSED,
+            wsproto.ConnectionState.REJECTING,
+        }:
+            return State.CLOSED
+
+        raise RuntimeError("wsproto unknown state, this is a bug")
 
     # TODO: fragmented messages
     def send(self, message):
@@ -326,7 +358,7 @@ class WebSocket:
         closing handshake to finish.
         """
 
-        if self.is_open:
+        if self.state is State.OPEN:
             self._send(wsproto.events.CloseConnection(
                 code=code,
                 reason=reason,
@@ -405,9 +437,9 @@ class WebSocket:
             # TODO: handle RemoteProtocolError (?)
             self._ws.receive_data(data)
 
-        self._log.debug("_read_loop is_open=%r shutdown=%r", self.is_open, shutdown)
+        self._log.debug("_read_loop %r shutdown=%r", self.state, shutdown)
 
-        if self.is_open:
+        if self.state is State.OPEN:
             # ensure state is not OPEN
             self._ws.send(wsproto.events.CloseConnection(code=1006))
 
@@ -555,7 +587,7 @@ class WebSocket:
             self.close(code=code)
 
     def _ensure_open(self):
-        if not self.is_open:
+        if self.state is not State.OPEN:
             self._raise_closed()
 
     def _raise_closed(self):
@@ -584,7 +616,7 @@ class WebSocket:
 
     # ditto x2
     def _ensure_connecting(self):
-        if self._ws_handshake.state is not wsproto.ConnectionState.CONNECTING:
+        if self.state is not State.CONNECTING:
             raise ProgrammingError(
                 f"state must be CONNECTING, is {self._ws_handshake.state.name}",
             )
