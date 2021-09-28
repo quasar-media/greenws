@@ -16,8 +16,8 @@ requires-python = ">=3.7"
 dynamic = ["version", "description"]
 
 [project.urls]
-documentation = "https://greenws.rtfd.io"
-repository = "https://github.com/quasar-media/python-greenws"
+Code = "https://github.com/quasar-media/python-greenws"
+Documentation = "https://greenws.rtfd.io"
 
 [tool.flit.module]
 name = "greenws"

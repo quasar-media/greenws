@@ -115,21 +115,23 @@ class WebSocket:
 
     :param sock: socket to wrap (warning: **the caller is responsible for
         closing the socket!**)
-    :param message_queue_size: how many messages to keep in memory
+    :param message_queue_size: how many messages to keep in memory (default: 0)
     :type message_queue_size: int
     :param max_message_size: maximum (total, not fragmented) message size, in
         bytes: if the remote sends a message bigger than this, the connection
-        will be closed with code 1009
+        will be closed with code 1009 (default: 1MB)
     :type max_message_size: int
     :param receive_buffer_size: how much data to receive at once, in bytes
+        (default: 4KB)
     :type receive_buffer_size: int
-    :param periodic_ping: maximum time interval between pings, set to 0 to
-        disable periodic pings
+    :param periodic_ping: maximum time interval (in seconds, or fractions
+        thereof) between pings, set to 0 to disable periodic pings (default: 5)
     :type period_ping: float
-    :param periodic_ping_timeout: how long to wait for each periodic ping
+    :param periodic_ping_timeout: how long to wait (in seconds) for a pong in
+        the ping loop (default: 5)
     :type periodic_ping_timeout: float
     :param periodic_ping_max_sequential_misses: how many misses are acceptable
-        before closing the connection
+        before closing the connection (default: 3)
     :type periodic_ping_max_sequential_misses: int
 
     .. warning::
@@ -239,8 +241,7 @@ class WebSocket:
     def receive(self, *, timeout=None):
         """Receive a message.
 
-        :param timeout: how long to wait for a message (default: wait
-            indefinitely)
+        :param timeout: how long to wait for a message (default: no timeout)
         :type timeout: float
 
         :raises Closed: if the connection is closed
@@ -343,8 +344,7 @@ class WebSocket:
         :type code: int
         :param reason: an optional reason string to send to the remote
         :type reason: str
-        :param timeout: how long to wait for close, default to waiting
-            indefinitely
+        :param timeout: how long to wait for close (default: no timeout)
 
         :raises Timeout: if timeout expires
         """
@@ -611,7 +611,8 @@ class WebSocket:
             self._queue = gevent.queue.Channel()
 
         self._readlet = gevent.spawn(self._read_loop)
-        self._pinglet = gevent.spawn(self._ping_loop)
+        if self.period_ping > 0:
+            self._pinglet = gevent.spawn(self._ping_loop)
 
     # ditto
     def _make_headers(self, headers=None):
