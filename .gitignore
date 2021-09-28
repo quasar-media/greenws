@@ -15,4 +15,5 @@ dist/
 .prof
 htmlcov
 
-_test/
+# built docs
+docs/_build
