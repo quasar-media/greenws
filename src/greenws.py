@@ -22,7 +22,7 @@ import wsproto.events
 import wsproto.utilities
 from gevent.timeout import Timeout  # re-export
 
-__version__ = "0.1.0a2"
+__version__ = "0.1.0a3"
 
 #: A proposed connection.
 #:
