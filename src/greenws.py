@@ -26,8 +26,8 @@ __version__ = "0.1.0a3"
 
 #: A proposed connection.
 #:
-#: namedtuple of one: *subprotocols* provides a list of subprotocols the client
-#: proposed in the upgrade handshake.
+#: :ivar subprotocols: subprotocols proposed by the client
+#: :vartype subprotocols: list(str)
 Proposal = collections.namedtuple("Proposal", "subprotocols")
 
 
@@ -126,7 +126,7 @@ class WebSocket:
     :type receive_buffer_size: int
     :param periodic_ping: maximum time interval (in seconds, or fractions
         thereof) between pings, set to 0 to disable periodic pings (default: 5)
-    :type period_ping: float
+    :type periodic_ping: float
     :param periodic_ping_timeout: how long to wait (in seconds) for a pong in
         the ping loop (default: 5)
     :type periodic_ping_timeout: float
@@ -162,7 +162,7 @@ class WebSocket:
         message_queue_size=0,
         max_message_size=2 ** 20,  # 1MB
         receive_buffer_size=2 ** 12,  # 4KB
-        period_ping=5.0, periodic_ping_timeout=5.0,
+        periodic_ping=5.0, periodic_ping_timeout=5.0,
         periodic_ping_max_sequential_misses=3,
     ):
         self._sock = sock
@@ -170,7 +170,7 @@ class WebSocket:
         self.message_queue_size = message_queue_size
         self.max_message_size = max_message_size
         self.receive_buffer_size = receive_buffer_size
-        self.period_ping = period_ping
+        self.periodic_ping = periodic_ping
         self.periodic_ping_timeout = periodic_ping_timeout
         self.periodic_ping_max_sequential_misses = periodic_ping_timeout
 
@@ -564,7 +564,7 @@ class WebSocket:
             else:
                 misses = 0
                 t -= time.monotonic()
-            gevent.sleep(max(1, self.period_ping - t))
+            gevent.sleep(max(1, self.periodic_ping - t))
         self._log.debug("_ping_loop exits")
 
     def _send(self, event):
@@ -611,7 +611,7 @@ class WebSocket:
             self._queue = gevent.queue.Channel()
 
         self._readlet = gevent.spawn(self._read_loop)
-        if self.period_ping > 0:
+        if self.periodic_ping > 0:
             self._pinglet = gevent.spawn(self._ping_loop)
 
     # ditto
@@ -651,9 +651,8 @@ class ClientWebSocket(WebSocket):
 
     .. note::
 
-       Make sure to read the documentation of the base :class:`WebSocket`: it
-       highlights a few caveats you might run into when using the greenws
-       interface.
+       Make sure to read the documentation of the base WebSocket: it highlights
+       a few caveats you might run into when using the greenws interface.
     """
 
     _type = wsproto.ConnectionType.CLIENT
@@ -745,9 +744,8 @@ class ServerWebSocket(WebSocket):
 
     .. note::
 
-       Make sure to read the documentation of the base :class:`WebSocket`: it
-       highlights a few caveats you might run into when using the greenws
-       interface.
+       Make sure to read the documentation of the base WebSocket: it highlights
+       a few caveats you might run into when using the greenws interface.
     """
 
     _type = wsproto.ConnectionType.SERVER
@@ -836,8 +834,12 @@ class WSHandler(gevent.pywsgi.WSGIHandler):
     (case-insensitive), this handler sets the "greenws.websocket"
     environment key to an instance of :class:`ServerWebSocket`. It does **not**
     further validate the request or reply with "101 Switching Protocol": that
-    is the responsibility of the underlying WSGI application.
+    is the responsibility of the WSGI application being called.
     """
+
+    #: WebSocket factory to instantiate ``greenws.websocket`` with: passed the
+    #: underlying socket as its only positional argument.
+    websocket_class = ServerWebSocket
 
     __ws = None
 
@@ -845,7 +847,7 @@ class WSHandler(gevent.pywsgi.WSGIHandler):
         environ = super().get_environ()
         if environ.get("HTTP_UPGRADE", "").lower() == "websocket":
             self.__ws = environ["greenws.websocket"] = \
-                ServerWebSocket(self.socket)
+                self.websocket_class(self.socket)
         return environ
 
     def write(self, data):

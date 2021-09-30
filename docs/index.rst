@@ -4,5 +4,7 @@ greenws
 API Reference
 -------------
 
-.. automodule:: greenws
-   :members:
+.. toctree::
+   :maxdepth: 3
+
+   api
