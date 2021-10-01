@@ -467,11 +467,27 @@ class WebSocket:
                 break
 
         if shutdown:
+            timeout = self._sock.gettimeout()
+            self._sock.settimeout(3.0)
+
             try:
-                self._sock.shutdown(gevent.socket.SHUT_RDWR)
+                self._sock.shutdown(gevent.socket.SHUT_WR)
             # honestly not sure if this can even raise...
             except gevent.socket.error:
-                self._log.exception("_read_loop shutdown() failure")
+                self._log.exception("_read_loop shutdown()")
+
+            d = None
+            while True:
+                try:
+                    d = self._sock.recv(self.receive_buffer_size)
+                    self._log.exception("_read_loop recv() on shutdown")
+                except _MoveOn:
+                    self._log.debug("_read_loop moving on on shutdown")
+                self._log.debug("_read_loop d=%r", d)
+                if not d:
+                    break
+
+            self._sock.settimeout(timeout)
 
         # XXX: does this wake up writers?
         self._sock.close()
