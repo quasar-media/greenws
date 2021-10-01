@@ -253,7 +253,11 @@ class WebSocket:
 
         self._ensure_open()
 
-        msg = self._queue.get(timeout=timeout)
+        try:
+            msg = self._queue.get(timeout=timeout)
+        except gevent.queue.Empty:
+            raise Timeout(seconds=timeout) from None
+
         if msg is None:
             self._raise_closed()
         return msg
@@ -314,11 +318,9 @@ class WebSocket:
             raise ValueError("duplicate ping payload")
         event = self._pings[payload] = gevent.event.Event()
         self._send(wsproto.events.Ping(payload=payload))
-        try:
-            event.wait()
-        except gevent.Timeout:
+        if not event.wait():
             self._pings.pop(payload, None)
-            raise
+            raise Timeout(seconds=timeout) from None
 
         self._ensure_open()  # bleh
 
@@ -349,8 +351,11 @@ class WebSocket:
         :raises Timeout: if timeout expires
         """
 
+        self._log.debug("close code=%d reason=%r timeout=%r", code, reason, timeout)
+
         self.close_nowait(code=code, reason=reason)
-        self._closed_event.wait(timeout=timeout)
+        if not self._closed_event.wait(timeout=timeout):
+            raise Timeout(seconds=timeout)
 
     def close_nowait(self, *, code, reason=None):
         """Gracefully close the connection.
@@ -358,6 +363,8 @@ class WebSocket:
         Identical to :meth:`close`, except in that it doesn't wait for the
         closing handshake to finish.
         """
+
+        self._log.debug("close_nowait state=%r", self.state)
 
         if self.state is State.OPEN:
             self._send(wsproto.events.CloseConnection(
@@ -371,6 +378,8 @@ class WebSocket:
         It is safe to call this method multiple times, and on a closed
         connection.
         """
+
+        self._log.debug("kill _readlet=%r", self._readlet)
 
         if not self._readlet or self._readlet.dead:
             return
@@ -416,6 +425,7 @@ class WebSocket:
                 shutdown = e.shutdown
                 break
 
+            self._log.debug("_read_loop recv()")
             try:
                 data = self._sock.recv(self.receive_buffer_size)
             except gevent.socket.error:
@@ -438,7 +448,12 @@ class WebSocket:
             # TODO: handle RemoteProtocolError (?)
             self._ws.receive_data(data)
 
-        self._log.debug("_read_loop %r shutdown=%r", self.state, shutdown)
+        self._log.debug(
+            "_read_loop %r %r shutdown=%r",
+            self.state,
+            self._ws.state,
+            shutdown,
+        )
 
         if self.state is State.OPEN:
             # ensure state is not OPEN
