@@ -256,7 +256,7 @@ class WebSocket:
         try:
             msg = self._queue.get(timeout=timeout)
         except gevent.queue.Empty:
-            raise Timeout(seconds=timeout) from None
+            raise Timeout() from None
 
         if msg is None:
             self._raise_closed()
@@ -320,7 +320,7 @@ class WebSocket:
         self._send(wsproto.events.Ping(payload=payload))
         if not event.wait():
             self._pings.pop(payload, None)
-            raise Timeout(seconds=timeout) from None
+            raise Timeout() from None
 
         self._ensure_open()  # bleh
 
@@ -355,7 +355,7 @@ class WebSocket:
 
         self.close_nowait(code=code, reason=reason)
         if not self._closed_event.wait(timeout=timeout):
-            raise Timeout(seconds=timeout)
+            raise Timeout()
 
     def close_nowait(self, *, code, reason=None):
         """Gracefully close the connection.

@@ -6,6 +6,10 @@ API
 Exceptions
 ----------
 
+.. exception:: Timeout
+
+   Re-export of :exc:`gevent.timeout.Timeout`.
+
 .. autoexception:: ConnectionError
 
 .. autoexception:: HTTPError
