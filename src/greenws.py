@@ -480,6 +480,9 @@ class WebSocket:
             while True:
                 try:
                     d = self._sock.recv(self.receive_buffer_size)
+                except gevent.socket.timeout:
+                    pass
+                except gevent.socket.error:
                     self._log.exception("_read_loop recv() on shutdown")
                 except _MoveOn:
                     self._log.debug("_read_loop moving on on shutdown")
